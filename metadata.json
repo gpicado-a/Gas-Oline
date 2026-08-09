@@ -1,0 +1,6 @@
+{
+  "name": "Puma Control Nicaragua",
+  "description": "Sistema de Control Operativo, Arqueos y Cierre de Turnos - Puma Energy Nicaragua",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
