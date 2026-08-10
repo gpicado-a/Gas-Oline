@@ -37,9 +37,11 @@ import {
   DEFAULT_SETTINGS
 } from '../utils/constants';
 
+import { IRepository } from './IRepository';
+
 type StorageListener = () => void;
 
-class StorageRepository {
+class StorageRepository implements IRepository {
   private listeners: Set<StorageListener> = new Set();
 
   constructor() {
@@ -111,6 +113,9 @@ class StorageRepository {
   public getUsers(): User[] {
     return this.getItem<User[]>('users', DEMO_USERS);
   }
+  public getUserById(uid: string): User | undefined {
+    return this.getUsers().find((u) => u.uid === uid);
+  }
   public saveUser(user: User): void {
     const users = this.getUsers();
     const index = users.findIndex((u) => u.uid === user.uid);
@@ -125,6 +130,9 @@ class StorageRepository {
   // --- Stations ---
   public getStations(): Station[] {
     return this.getItem<Station[]>('stations', DEMO_STATIONS);
+  }
+  public getStationById(id: string): Station | undefined {
+    return this.getStations().find((s) => s.id === id);
   }
   public saveStation(station: Station): void {
     const list = this.getStations();

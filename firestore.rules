@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // HELPER FUNCTIONS FOR SECURITY & RBAC
+    // ==========================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getRole() {
+      return request.auth.token.role != null 
+        ? request.auth.token.role 
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? getUserData().rol : 'CONSULTA');
+    }
+
+    function getTenantId() {
+      return request.auth.token.tenantId != null 
+        ? request.auth.token.tenantId 
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? getUserData().tenantId : 'default_tenant');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getRole() == 'SUPER_ADMIN';
+    }
+
+    function isTenantAdmin(tenantId) {
+      return isSignedIn() && (
+        isSuperAdmin() || 
+        (getTenantId() == tenantId && getRole() == 'ADMINISTRADOR')
+      );
+    }
+
+    function isTenantManager(tenantId) {
+      return isSignedIn() && getTenantId() == tenantId && (
+        getRole() == 'ADMINISTRADOR' || getRole() == 'GERENTE'
+      );
+    }
+
+    function isTenantUser(tenantId) {
+      return isSignedIn() && (isSuperAdmin() || getTenantId() == tenantId);
+    }
+
+    function isAuditor(tenantId) {
+      return isSignedIn() && isTenantUser(tenantId) && getRole() == 'AUDITOR';
+    }
+
+    function hasStationAccess(tenantId, stationId) {
+      return isTenantUser(tenantId) && (
+        isSuperAdmin() ||
+        isTenantAdmin(tenantId) ||
+        getUserData().stationIds == null ||
+        getUserData().stationIds.size() == 0 ||
+        stationId in getUserData().stationIds
+      );
+    }
+
+    // ==========================================
+    // DEFAULT POLICY: DENY ALL
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // USER PROFILES & GLOBAL USERS
+    // ==========================================
+    match /users/{userId} {
+      // User can read their own profile, Admins can read all users in tenant
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      
+      // Only SuperAdmin or TenantAdmin can write user documents and assign roles/stationIds
+      allow create, update: if isSuperAdmin() || (
+        isSignedIn() && 
+        getRole() == 'ADMINISTRADOR' && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol', 'tenantId'])
+      );
+      
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================================
+    // MULTI-TENANT BOUNDARY: /tenants/{tenantId}
+    // ==========================================
+    match /tenants/{tenantId} {
+      
+      allow read: if isTenantUser(tenantId);
+      allow write: if isSuperAdmin();
+
+      // Tenant Users subcollection
+      match /users/{userId} {
+        allow read: if isTenantUser(tenantId);
+        allow create, update: if isTenantAdmin(tenantId) && (
+          // Prevent non-superadmins from escalating to SUPER_ADMIN
+          request.resource.data.rol != 'SUPER_ADMIN'
+        );
+        allow delete: if isTenantAdmin(tenantId);
+      }
+
+      // Station Configurations
+      match /stations/{stationId} {
+        allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+        allow write: if isTenantAdmin(tenantId);
+
+        // Shifts inside station
+        match /shifts/{shiftId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() != 'CONSULTA';
+          // Prevent modifying shift if status is already CLOSED unless user is Admin/Manager
+          allow update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && (
+            isTenantManager(tenantId) || resource.data.estado == 'OPEN'
+          );
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Pump Readings
+        match /pumpReadings/{readingId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Store Sales
+        match /storeSales/{saleId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Cash Counts
+        match /cashCounts/{countId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Card Transactions
+        match /cardTransactions/{txId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Special Sales / Coupons
+        match /specialTransactions/{txId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Fuel Inventories
+        match /fuelInventories/{recordId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Bank Deposits
+        match /bankDeposits/{depositId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+
+        // Reconciliations
+        match /reconciliations/{recId} {
+          allow read: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId);
+          allow create, update: if isTenantUser(tenantId) && hasStationAccess(tenantId, stationId) && getRole() in ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'];
+          allow delete: if isTenantAdmin(tenantId);
+        }
+      }
+
+      // ==========================================
+      // AUDIT LOGS (STRICT IMMUTABILITY RULE)
+      // ==========================================
+      match /auditLogs/{logId} {
+        // Auditor, Admin, SuperAdmin can view logs for their tenant
+        allow read: if isTenantUser(tenantId) && (isTenantAdmin(tenantId) || isAuditor(tenantId));
+        
+        // Append-only logs from authenticated users inside their tenant
+        allow create: if isTenantUser(tenantId) && request.resource.data.usuarioId == request.auth.uid;
+        
+        // NO ONE CAN EVER UPDATE OR DELETE AUDIT LOGS (IMMUTABLE LOGS)
+        allow update, delete: if false;
+      }
+    }
+  }
+}

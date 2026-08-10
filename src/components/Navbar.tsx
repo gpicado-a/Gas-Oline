@@ -149,15 +149,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Role Switcher Trigger (Desktop) */}
-            <button
-              onClick={onOpenRoleModal}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
-              title="Cambiar perfil para verificar permisos"
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden lg:inline">Perfil: {currentUser?.rol}</span>
-            </button>
+            {/* Role Switcher Trigger (Desktop - Demo Only / Verified Badge in Prod) */}
+            {import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_SWITCHER === 'true' ? (
+              <button
+                onClick={onOpenRoleModal}
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
+                title="Cambiar perfil para verificar permisos (Modo Demo)"
+              >
+                <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden lg:inline">Perfil: {currentUser?.rol}</span>
+              </button>
+            ) : (
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/80 text-slate-200 border border-slate-700/80 rounded-lg text-xs font-semibold shadow-xs shrink-0">
+                <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden lg:inline">Perfil: {currentUser?.rol}</span>
+              </div>
+            )}
 
             {/* Current User */}
             {currentUser && (

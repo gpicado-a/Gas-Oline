@@ -179,11 +179,22 @@ export interface CashDenominationItem {
   subtotal: number;
 }
 
+export interface UsdDenominations {
+  bill100: number;
+  bill50: number;
+  bill20: number;
+  bill10: number;
+  bill5: number;
+  bill1: number;
+}
+
 export interface CashCount {
   id: string;
   stationId: string;
   shiftId: string;
   items: CashDenominationItem[];
+  usdDenominations?: UsdDenominations;
+  totalUsd?: number;
   totalEfectivo: number;
   recordedBy: string;
   recordedAt: string;

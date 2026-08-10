@@ -15,7 +15,9 @@ export const QuickRoleSwitcherModal: React.FC<QuickRoleSwitcherModalProps> = ({
   onClose,
   onRoleChanged
 }) => {
-  if (!isOpen) return null;
+  // SECURITY HARDENING: Never allow QuickRoleSwitcher in Production build
+  const isDemoEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_SWITCHER === 'true';
+  if (!isOpen || !isDemoEnabled) return null;
 
   const currentUser = authService.getCurrentUser();
 

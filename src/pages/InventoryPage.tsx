@@ -114,6 +114,59 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ stationId, onNavig
         </div>
       </div>
 
+      {/* Seccion de Autonomía de Tanques e Inventario Físico por Varillaje Manual */}
+      <div className="bg-slate-900 text-slate-100 p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-200 uppercase tracking-wider">
+            <Boxes className="w-4 h-4 text-emerald-400" />
+            Control de Tanques - Varillaje / Medición Física Manual
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700 rounded-full text-[11px] font-mono font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            REGISTRO 100% MANUAL
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {records.map((r, idx) => {
+            const tankCapacity = idx === 0 ? 10000 : idx === 1 ? 12000 : 8000;
+            const pct = Math.min(100, Math.max(0, (r.physicalInventory / tankCapacity) * 100));
+            const burnRate = r.productId === 'prod-super' ? 1850 : r.productId === 'prod-regular' ? 1400 : 1100;
+            const daysRemaining = (r.physicalInventory / burnRate).toFixed(1);
+            const needsRestock = parseFloat(daysRemaining) < 2.5;
+
+            return (
+              <div key={`tank-manual-${r.id}`} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-sm text-slate-200">{r.productNombre}</span>
+                  <span className="text-[10px] font-mono text-slate-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                    Tanque #{idx + 1}
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs font-mono font-bold">
+                    <span className="text-slate-400">Varillaje Físico:</span>
+                    <span className="text-slate-100">{r.physicalInventory.toLocaleString('es-NI')} / {tankCapacity.toLocaleString('es-NI')} L</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${pct < 25 ? 'bg-rose-500' : pct < 50 ? 'bg-amber-500' : 'bg-emerald-400'}`}
+                      style={{ width: `${pct}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className={`p-2 rounded-lg text-[11px] font-bold flex items-center justify-between ${needsRestock ? 'bg-rose-950/80 border border-rose-800 text-rose-200' : 'bg-slate-900 border border-slate-800 text-slate-300'}`}>
+                  <span>Autonomía estimada:</span>
+                  <span className="font-mono">{daysRemaining} Días {needsRestock ? '⚠️ REPEDIR CISTERNA' : ''}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {!canModify && (
         <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2.5 font-medium shadow-xs">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />

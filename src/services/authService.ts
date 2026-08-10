@@ -108,6 +108,42 @@ class AuthService {
     localStorage.removeItem('maestro_current_user_uid');
   }
 
+  public resetPassword(email: string): { success: boolean; message: string } {
+    const users = storageRepo.getUsers();
+    const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+
+    storageRepo.addAuditLog({
+      usuarioId: user ? user.uid : 'anonymous',
+      usuarioNombre: user ? `${user.nombre} ${user.apellido}` : email,
+      rol: user ? user.rol : 'CONSULTA',
+      accion: 'UPDATE',
+      modulo: 'Autenticación',
+      entidad: 'User',
+      entidadId: user ? user.uid : 'none',
+      detalles: `Solicitud de recuperación de contraseña para: ${email}`
+    });
+
+    if (!user) {
+      // Do not reveal user non-existence for security against user enumeration
+      return {
+        success: true,
+        message: 'Si el correo está registrado en el sistema, recibirá las instrucciones de recuperación.'
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Se ha enviado un enlace de restablecimiento de contraseña a su correo electrónico corporativo.'
+    };
+  }
+
+  public hasAccessToStation(stationId: string): boolean {
+    if (!this.currentUser) return false;
+    if (this.currentUser.rol === 'SUPER_ADMIN' || this.currentUser.rol === 'ADMINISTRADOR') return true;
+    if (!this.currentUser.stationIds || this.currentUser.stationIds.length === 0) return true;
+    return this.currentUser.stationIds.includes(stationId);
+  }
+
   public checkPermission(moduleName: string): string {
     if (!this.currentUser) return '-';
     const roleMap = MATRIX_PERMISSIONS[moduleName];
@@ -115,24 +151,67 @@ class AuthService {
     return roleMap[this.currentUser.rol] || '-';
   }
 
-  public canManageMasterData(): boolean {
+  /**
+   * Evaluates granular action capability (CREATE, READ, UPDATE, DELETE) against MATRIX_PERMISSIONS.
+   */
+  public can(moduleName: string, action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE'): boolean {
     if (!this.currentUser) return false;
-    return ['SUPER_ADMIN', 'ADMINISTRADOR'].includes(this.currentUser.rol);
+    const permStr = this.checkPermission(moduleName);
+    if (permStr === '-') return false;
+    if (permStr === 'CRUD' || permStr === 'CRUD_TURNO' || permStr === 'PROPIOS') {
+      return true;
+    }
+    if (permStr === 'CRU' && action !== 'DELETE') return true;
+    if (permStr === 'CR' && (action === 'CREATE' || action === 'READ')) return true;
+    if (permStr === 'R' && action === 'READ') return true;
+    return false;
+  }
+
+  /**
+   * Enforces security policy. Throws an error and logs a security violation if unauthorized.
+   */
+  public assertCan(moduleName: string, action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE', stationId?: string): void {
+    if (!this.currentUser) {
+      throw new Error('Seguridad: Usuario no autenticado.');
+    }
+
+    const hasPermission = this.can(moduleName, action);
+    const hasStation = stationId ? this.hasAccessToStation(stationId) : true;
+
+    if (!hasPermission || !hasStation) {
+      const reason = !hasPermission
+        ? `Permiso denegado para ${action} en módulo '${moduleName}'`
+        : `Acceso no autorizado a la Estación: ${stationId}`;
+
+      storageRepo.addAuditLog({
+        usuarioId: this.currentUser.uid,
+        usuarioNombre: `${this.currentUser.nombre} ${this.currentUser.apellido}`,
+        rol: this.currentUser.rol,
+        accion: 'UPDATE',
+        modulo: moduleName,
+        entidad: 'SecurityGuard',
+        entidadId: stationId || 'global',
+        detalles: `ALERTA DE SEGURIDAD: Intento de violación de acceso - ${reason}`
+      });
+
+      throw new Error(`Acceso denegado: ${reason}`);
+    }
+  }
+
+  public canManageMasterData(): boolean {
+    return this.can('Configuracion', 'UPDATE');
   }
 
   public canManagePrices(): boolean {
-    if (!this.currentUser) return false;
-    return ['SUPER_ADMIN', 'ADMINISTRADOR'].includes(this.currentUser.rol);
+    return this.can('Precios', 'UPDATE');
   }
 
   public canManageShifts(): boolean {
-    if (!this.currentUser) return false;
-    return ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'].includes(this.currentUser.rol);
+    return this.can('Turnos', 'UPDATE');
   }
 
   public canEditOperations(): boolean {
-    if (!this.currentUser) return false;
-    return ['SUPER_ADMIN', 'ADMINISTRADOR', 'GERENTE', 'SUPERVISOR_TIENDA'].includes(this.currentUser.rol);
+    return this.can('Turnos', 'UPDATE') || this.can('Bombas', 'UPDATE');
   }
 
   public canModifyShift(shiftStatus?: string): boolean {

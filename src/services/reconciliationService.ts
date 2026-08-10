@@ -10,6 +10,7 @@ class ReconciliationService {
     const shift = storageRepo.getShiftById(shiftId);
     if (!shift) return [];
 
+    const station = storageRepo.getStationById(shift.stationId);
     const settings = storageRepo.getSettings();
     const pumpReadings = storageRepo.getPumpReadings(shiftId);
     const storeSales = storageRepo.getStoreSales(shiftId);
@@ -176,6 +177,69 @@ class ReconciliationService {
         ? `${deposits.length} depósitos registrados sumando C$ ${totalDeposits.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
         : 'Sin depósitos bancarios registrados en este turno.'
     });
+
+    // 7. [FASE 6] Cuadre Bimonetario (NIO / USD) y Variación por Tasa de Cambio
+    const tasaCambio = station?.tasaCambioDefault || 36.65;
+    const usdSales = cashCount?.usdDenominations
+      ? (cashCount.usdDenominations.bill100 * 100 +
+         cashCount.usdDenominations.bill50 * 50 +
+         cashCount.usdDenominations.bill20 * 20 +
+         cashCount.usdDenominations.bill10 * 10 +
+         cashCount.usdDenominations.bill5 * 5 +
+         cashCount.usdDenominations.bill1 * 1)
+      : 0;
+    const usdInCordobas = usdSales * tasaCambio;
+    const nioSales = cashCount ? (totalCashCount - usdInCordobas) : 0;
+
+    results.push({
+      id: `rec-fx-${shiftId}`,
+      stationId: shift.stationId,
+      shiftId,
+      tipo: 'CASH',
+      nombre: 'Conciliación Bimonetaria (Córdobas NIO / Dólares USD)',
+      esperado: totalCashCount,
+      real: totalCashCount,
+      diferencia: 0,
+      status: 'OK',
+      threshold: 0,
+      mensaje: cashCount
+        ? `Desglose Bimonetario: C$ ${nioSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })} en NIO + $${usdSales.toFixed(2)} USD (Tasa de cambio: ${tasaCambio} NIO/USD = C$ ${usdInCordobas.toLocaleString('es-NI', { minimumFractionDigits: 2 })})`
+        : 'Pendiente de conteo bimonetario.'
+    });
+
+    // 8. [FASE 5] Detector Automático de Anomalías y Riesgo Operativo
+    const cashInHand = totalCashCount - totalDeposits;
+    if (cashInHand > 50000) {
+      results.push({
+        id: `rec-anomaly-cash-${shiftId}`,
+        stationId: shift.stationId,
+        shiftId,
+        tipo: 'GENERAL',
+        nombre: 'ALERTA DE ANOMALÍA: Acumulación Excesiva de Efectivo sin Depositar',
+        esperado: 50000,
+        real: cashInHand,
+        diferencia: cashInHand - 50000,
+        status: 'WARNING',
+        threshold: 50000,
+        mensaje: `RIESGO DE SEGURIDAD: C$ ${cashInHand.toLocaleString('es-NI', { minimumFractionDigits: 2 })} en caja chica. Se recomienda remesar inmediatamente al banco.`
+      });
+    }
+
+    if (totalCalibrations > 500) {
+      results.push({
+        id: `rec-anomaly-calib-${shiftId}`,
+        stationId: shift.stationId,
+        shiftId,
+        tipo: 'FUEL',
+        nombre: 'ALERTA DE ANOMALÍA: Calibraciones/Jarras de Prueba Elevadas',
+        esperado: 500,
+        real: totalCalibrations,
+        diferencia: totalCalibrations - 500,
+        status: 'WARNING',
+        threshold: 500,
+        mensaje: `ANOMALÍA EN PISTA: Se registraron C$ ${totalCalibrations.toFixed(2)} en pruebas de probetín/calibración. Verificar mangueras.`
+      });
+    }
 
     // Actualizar totales en el turno
     shift.totalFuelSales = totalFuelSales;

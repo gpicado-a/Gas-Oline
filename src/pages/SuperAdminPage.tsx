@@ -28,6 +28,7 @@ import {
   Sliders,
   TrendingUp,
   Fuel,
+  Download,
   X
 } from 'lucide-react';
 
@@ -50,6 +51,21 @@ export const SuperAdminPage: React.FC<SuperAdminPageProps> = ({
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('TODOS');
   const [selectedPlanFilter, setSelectedPlanFilter] = useState<string>('TODOS');
   const [activeSubTab, setActiveSubTab] = useState<'DIRECTORIO' | 'METRICAS' | 'ALERTAS' | 'AUDITORIA'>('DIRECTORIO');
+
+  // Audit Search & Filter States
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const [auditActionFilter, setAuditActionFilter] = useState<string>('TODOS');
+
+  const handleExportAuditTrail = () => {
+    const logs = storageRepo.getAuditLogs();
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(logs, null, 2))}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', `bitacora_auditoria_gasonline_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
   // Modal States
   const [isNewStationModalOpen, setIsNewStationModalOpen] = useState(false);
@@ -694,13 +710,60 @@ export const SuperAdminPage: React.FC<SuperAdminPageProps> = ({
         </div>
       )}
 
-      {/* Sub-Tab 4: Audit Logs */}
+      {/* Sub-Tab 4: Audit Logs & Security Trail */}
       {activeSubTab === 'AUDITORIA' && (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-indigo-500" />
-            Bitácora de Auditoría Operativa SaaS SuperAdmin
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
+            <div>
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-500" />
+                Bitácora de Auditoría Operativa y Seguridad SaaS
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">Registro inmutable de transacciones, alertas de acceso y cambios de configuración</p>
+            </div>
+
+            <button
+              onClick={handleExportAuditTrail}
+              className="px-3 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2 border border-slate-700 shrink-0"
+            >
+              <Download className="w-4 h-4 text-emerald-400" />
+              <span>Exportar Registro (JSON)</span>
+            </button>
+          </div>
+
+          {/* Filters Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={auditSearchTerm}
+                onChange={(e) => setAuditSearchTerm(e.target.value)}
+                placeholder="Buscar por operador, detalle o módulo..."
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+              <select
+                value={auditActionFilter}
+                onChange={(e) => setAuditActionFilter(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 outline-none font-bold"
+              >
+                <option value="TODOS">Todas las Acciones</option>
+                <option value="UPDATE">Modificaciones (UPDATE)</option>
+                <option value="CREATE">Creaciones (CREATE)</option>
+                <option value="DELETE">Eliminaciones (DELETE)</option>
+                <option value="LOGIN">Inicios de Sesión (LOGIN)</option>
+                <option value="ALERTAS">Solo Alertas de Seguridad</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end text-xs font-bold text-slate-500">
+              Registros: {storageRepo.getAuditLogs().length}
+            </div>
+          </div>
 
           <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden text-xs">
             <table className="w-full text-left border-collapse">
@@ -708,29 +771,72 @@ export const SuperAdminPage: React.FC<SuperAdminPageProps> = ({
                 <tr className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800 uppercase font-mono text-[10px]">
                   <th className="p-2.5">Fecha / Hora</th>
                   <th className="p-2.5">Usuario Operador</th>
+                  <th className="p-2.5">Módulo</th>
                   <th className="p-2.5">Acción</th>
                   <th className="p-2.5">Detalles</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200">
-                {storageRepo.getAuditLogs().map((log) => (
-                  <tr key={log.id}>
-                    <td className="p-2.5 font-mono text-slate-500 text-[11px]">
-                      {new Date(log.timestamp).toLocaleString('es-NI')}
-                    </td>
-                    <td className="p-2.5 font-bold">
-                      {log.usuarioNombre} ({log.rol})
-                    </td>
-                    <td className="p-2.5">
-                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 font-mono text-[10px] font-extrabold rounded">
-                        {log.accion}
-                      </span>
-                    </td>
-                    <td className="p-2.5 font-sans text-slate-600 dark:text-slate-400">
-                      {log.detalles}
-                    </td>
-                  </tr>
-                ))}
+                {storageRepo
+                  .getAuditLogs()
+                  .filter((log) => {
+                    const matchesSearch =
+                      log.usuarioNombre.toLowerCase().includes(auditSearchTerm.toLowerCase()) ||
+                      log.detalles.toLowerCase().includes(auditSearchTerm.toLowerCase()) ||
+                      log.modulo.toLowerCase().includes(auditSearchTerm.toLowerCase());
+
+                    const isAlert = log.detalles.includes('ALERTA DE SEGURIDAD');
+
+                    if (auditActionFilter === 'ALERTAS') return matchesSearch && isAlert;
+                    if (auditActionFilter !== 'TODOS') return matchesSearch && log.accion === auditActionFilter;
+                    return matchesSearch;
+                  })
+                  .map((log) => {
+                    const isSecurityAlert = log.detalles.includes('ALERTA DE SEGURIDAD');
+                    return (
+                      <tr
+                        key={log.id}
+                        className={
+                          isSecurityAlert
+                            ? 'bg-amber-950/20 text-amber-200 dark:bg-amber-950/30'
+                            : ''
+                        }
+                      >
+                        <td className="p-2.5 font-mono text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString('es-NI')}
+                        </td>
+                        <td className="p-2.5 font-bold whitespace-nowrap">
+                          {log.usuarioNombre} <span className="text-[10px] text-slate-400 font-normal">({log.rol})</span>
+                        </td>
+                        <td className="p-2.5 font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {log.modulo}
+                        </td>
+                        <td className="p-2.5 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 font-mono text-[10px] font-extrabold rounded ${
+                              isSecurityAlert
+                                ? 'bg-amber-500 text-slate-950 font-black'
+                                : log.accion === 'DELETE'
+                                ? 'bg-rose-900 text-rose-100'
+                                : log.accion === 'CREATE'
+                                ? 'bg-emerald-900 text-emerald-100'
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {log.accion}
+                          </span>
+                        </td>
+                        <td className="p-2.5 font-sans text-slate-700 dark:text-slate-300">
+                          {isSecurityAlert && (
+                            <span className="inline-flex items-center gap-1 text-amber-400 font-bold mr-1">
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                          {log.detalles}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

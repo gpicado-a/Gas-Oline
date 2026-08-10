@@ -23,6 +23,7 @@ import { UsersManagementPage } from './pages/UsersManagementPage';
 import { SuperAdminPage } from './pages/SuperAdminPage';
 import { QuickRoleSwitcherModal } from './components/QuickRoleSwitcherModal';
 import { AiShiftAdvisorModal } from './components/AiShiftAdvisorModal';
+import { PermissionGuard } from './components/PermissionGuard';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
@@ -117,99 +118,137 @@ export function App() {
         {/* Main View Area */}
         <main className="flex-1 min-w-0 overflow-y-auto pb-10">
           {activeTab === 'superadmin' && (
-            <SuperAdminPage
-              onSelectStation={(id) => setSelectedStationId(id)}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="SuperAdmin" action="READ">
+              <SuperAdminPage
+                onSelectStation={(id) => setSelectedStationId(id)}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'dashboard' && (
-            <DashboardPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Dashboard" action="READ" stationId={selectedStationId}>
+              <DashboardPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'turno_actual' && (
-            <ShiftOpeningPage
-              stationId={selectedStationId}
-              onShiftOpened={() => setActiveTab('bombas')}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Turnos" action="READ" stationId={selectedStationId}>
+              <ShiftOpeningPage
+                stationId={selectedStationId}
+                onShiftOpened={() => setActiveTab('bombas')}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'bombas' && (
-            <PumpReadingsPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Bombas" action="READ" stationId={selectedStationId}>
+              <PumpReadingsPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'tienda' && (
-            <StoreSalesPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Turnos" action="READ" stationId={selectedStationId}>
+              <StoreSalesPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'efectivo' && (
-            <CashCountPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Efectivo" action="READ" stationId={selectedStationId}>
+              <CashCountPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'tarjetas' && (
-            <CardsPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Tarjetas" action="READ" stationId={selectedStationId}>
+              <CardsPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'especiales' && (
-            <SpecialSalesPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Cupones" action="READ" stationId={selectedStationId}>
+              <SpecialSalesPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'inventario' && (
-            <InventoryPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Inventario" action="READ" stationId={selectedStationId}>
+              <InventoryPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'depositos' && (
-            <DepositsPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Depositos" action="READ" stationId={selectedStationId}>
+              <DepositsPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'cuadres' && (
-            <ReconciliationsPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Cuadres" action="READ" stationId={selectedStationId}>
+              <ReconciliationsPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'cierre' && (
-            <ShiftClosingPage
-              stationId={selectedStationId}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <PermissionGuard module="Turnos" action="READ" stationId={selectedStationId}>
+              <ShiftClosingPage
+                stationId={selectedStationId}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            </PermissionGuard>
           )}
 
           {activeTab === 'usuarios' && (
-            <UsersManagementPage onSelectStation={(id) => setSelectedStationId(id)} />
+            <PermissionGuard module="Usuarios" action="READ">
+              <UsersManagementPage onSelectStation={(id) => setSelectedStationId(id)} />
+            </PermissionGuard>
           )}
 
-          {activeTab === 'reportes' && <ReportsPage stationId={selectedStationId} />}
+          {activeTab === 'reportes' && (
+            <PermissionGuard module="Dashboard" action="READ" stationId={selectedStationId}>
+              <ReportsPage stationId={selectedStationId} />
+            </PermissionGuard>
+          )}
 
-          {activeTab === 'precios' && <PriceManagementPage />}
+          {activeTab === 'precios' && (
+            <PermissionGuard module="Precios" action="READ">
+              <PriceManagementPage />
+            </PermissionGuard>
+          )}
 
-          {activeTab === 'configuracion' && <MasterDataPage />}
+          {activeTab === 'configuracion' && (
+            <PermissionGuard module="Configuracion" action="READ">
+              <MasterDataPage />
+            </PermissionGuard>
+          )}
         </main>
       </div>
 
